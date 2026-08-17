@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>溫馨人力時數計算小工具</title>
+    <style>
+        :root {
+            --primary-color: #D4A373; /* 溫馨奶茶色 */
+            --bg-color: #FAEDCD;      /* 柔和米黃色背景 */
+            --text-color: #5C4033;    /* 深咖啡色字體 */
+            --border-radius: 15px;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, '微軟正黑體', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        /* 融入您指定的新圖片 */
+        .header img {
+            max-width: 100%;
+            height: auto;
+            border-radius: var(--border-radius);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 32px;
+            color: #8B5A2B;
+            text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
+        }
+
+        .table-container {
+            background-color: #FEFAE0;
+            padding: 25px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 20px rgba(139, 90, 43, 0.1);
+            width: 100%;
+            max-width: 1100px;
+            overflow-x: auto;
+            border: 3px solid #E9EDC9;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+        }
+
+        th {
+            background-color: var(--primary-color);
+            color: #FFFFFF;
+            padding: 15px;
+            font-weight: bold;
+            font-size: 16px;
+            white-space: nowrap;
+            letter-spacing: 1px;
+        }
+
+        th:first-child { border-top-left-radius: 10px; }
+        th:last-child { border-top-right-radius: 10px; }
+
+        td {
+            padding: 12px;
+            border-bottom: 2px dashed #CCD5AE;
+            font-size: 15px;
+        }
+
+        tr:last-child td { border-bottom: none; }
+        
+        tr:hover { background-color: #E9EDC9; transition: 0.3s; }
+
+        input[type="number"] {
+            width: 80px;
+            padding: 8px;
+            border: 2px solid #D4A373;
+            border-radius: 8px;
+            text-align: center;
+            color: var(--text-color);
+            font-size: 15px;
+            font-weight: bold;
+            outline: none;
+            background-color: #FFFFFF;
+            transition: 0.2s;
+        }
+
+        input[type="number"]:focus {
+            border-color: #A98467;
+            box-shadow: 0 0 8px rgba(212, 163, 115, 0.6);
+            background-color: #FFF;
+        }
+
+        .total-amount {
+            font-weight: bold;
+            color: #E07A5F;
+            font-size: 18px;
+        }
+
+        .grand-total-container {
+            margin-top: 25px;
+            padding-top: 15px;
+            border-top: 3px solid #D4A373;
+            text-align: right;
+            font-size: 24px;
+            font-weight: bold;
+            color: #D45041;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <!-- 嵌入您指定的新圖片 -->
+        <img src="https://i.postimg.cc/MGkXxsgz/jie-tu-2026-08-15-wan-shang10-10-03.png" alt="Dinotaeng 溫馨人力計算">
+        <h1>🐻 人力時數與費用計算小工具 🐻</h1>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>廠商名稱</th>
+                    <th>時薪設定 (元)</th>
+                    <th>人數</th>
+                    <th>一般工時 (hr)</th>
+                    <th>加班工時 (hr)</th>
+                    <th>額外費用 (元)</th>
+                    <th>需給付金額 (元)</th>
+                </tr>
+            </thead>
+            <tbody id="vendor-body">
+                <!-- 透過 JS 動態產生表格 -->
+            </tbody>
+        </table>
+        <div class="grand-total-container">
+            總計給付金額： NT$ <span id="grand-total">0</span>
+        </div>
+    </div>
+
+    <script>
+        // 指定的 8 間廠商名單
+        const vendors = [
+            "銘暘(凱宥)", "源信", "杜豪", "彤勝", 
+            "安迅", "協泰", "建德", "優質人資"
+        ];
+
+        const tbody = document.getElementById('vendor-body');
+
+        // 初始化表格內容
+        function renderTable() {
+            vendors.forEach((vendor, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-weight: bold; color: #6F4E37;">${vendor}</td>
+                    <td><input type="number" min="0" value="200" id="rate_${index}" oninput="calculateRow(${index})"></td>
+                    <td><input type="number" min="0" value="0" id="people_${index}" oninput="calculateRow(${index})"></td>
+                    <td><input type="number" min="0" value="0" id="hours_${index}" oninput="calculateRow(${index})"></td>
+                    <td><input type="number" min="0" value="0" id="ot_hours_${index}" oninput="calculateRow(${index})"></td>
+                    <td><input type="number" min="0" value="0" id="extra_${index}" oninput="calculateRow(${index})"></td>
+                    <td class="total-amount" id="total_${index}">0</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 單行計算邏輯
+        function calculateRow(index) {
+            const rate = parseFloat(document.getElementById(`rate_${index}`).value) || 0;
+            const people = parseFloat(document.getElementById(`people_${index}`).value) || 0;
+            const hours = parseFloat(document.getElementById(`hours_${index}`).value) || 0;
+            const otHours = parseFloat(document.getElementById(`ot_hours_${index}`).value) || 0;
+            const extra = parseFloat(document.getElementById(`extra_${index}`).value) || 0;
+
+            // 預設計算公式：((一般工時 * 時薪) + (加班工時 * 時薪 * 1.33)) * 人數 + 額外費用
+            // 若貴公司加班費計算方式不同，可以修改此處的 1.33 乘數
+            const otRate = rate * 1.33; 
+            const totalPay = Math.round(((hours * rate) + (otHours * otRate)) * people + extra);
+
+            document.getElementById(`total_${index}`).innerText = totalPay.toLocaleString();
+            calculateGrandTotal();
+        }
+
+        // 計算總金額
+        function calculateGrandTotal() {
+            let grandTotal = 0;
+            for(let i = 0; i < vendors.length; i++) {
+                const rowTotalText = document.getElementById(`total_${i}`).innerText;
+                const rowTotal = parseInt(rowTotalText.replace(/,/g, '')) || 0;
+                grandTotal += rowTotal;
+            }
+            document.getElementById('grand-total').innerText = grandTotal.toLocaleString();
+        }
+
+        // 執行初始化
+        window.onload = renderTable;
+    </script>
+</body>
+</html>
