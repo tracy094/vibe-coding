@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>溫馨人力時數計算與核對工具</title>
+    <!-- 引入讀取 Excel 的套件 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #D4A373; 
+            --bg-color: #FAEDCD;      
+            --text-color: #5C4033;    
+            --border-radius: 15px;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, '微軟正黑體', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header { text-align: center; margin-bottom: 25px; }
+        .header img {
+            max-width: 100%; height: auto;
+            border-radius: var(--border-radius);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            margin: 0; font-size: 32px; color: #8B5A2B;
+            text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
+        }
+
+        .card-container {
+            background-color: #FEFAE0;
+            padding: 25px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 20px rgba(139, 90, 43, 0.1);
+            width: 100%; max-width: 1100px;
+            overflow-x: auto;
+            border: 3px solid #E9EDC9;
+            margin-bottom: 30px;
+        }
+
+        table { width: 100%; border-collapse: collapse; text-align: center; margin-bottom: 15px; }
+        th { background-color: var(--primary-color); color: #FFFFFF; padding: 12px; font-weight: bold; white-space: nowrap; }
+        th:first-child { border-top-left-radius: 10px; }
+        th:last-child { border-top-right-radius: 10px; }
+        td { padding: 10px; border-bottom: 2px dashed #CCD5AE; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background-color: #E9EDC9; transition: 0.3s; }
+
+        input[type="number"] {
+            width: 70px; padding: 8px; border: 2px solid #D4A373;
+            border-radius: 8px; text-align: center; font-weight: bold; outline: none;
+        }
+        input[type="number"]:focus { border-color: #A98467; box-shadow: 0 0 8px rgba(212,163,115,0.6); }
+
+        .total-amount { font-weight: bold; color: #E07A5F; font-size: 18px; }
+        
+        .grand-total-container {
+            margin-top: 15px; padding-top: 15px; border-top: 3px solid #D4A373;
+            text-align: right; font-size: 24px; font-weight: bold; color: #D45041;
+        }
+
+        /* 檔案上傳區塊樣式 */
+        .upload-section h2 { color: #8B5A2B; margin-top: 0; font-size: 22px; border-bottom: 2px dashed #D4A373; padding-bottom: 10px; }
+        input[type="file"] {
+            display: block; margin: 15px 0; padding: 10px;
+            background-color: #FFF; border: 2px dashed #D4A373;
+            border-radius: 10px; cursor: pointer; width: 100%; box-sizing: border-box;
+        }
+        
+        .excel-preview table { font-size: 14px; }
+        .excel-preview th { background-color: #A98467; }
+        .excel-preview td { border-bottom: 1px solid #E9EDC9; }
+        .excel-sum-row { font-weight: bold; background-color: #FFE4E1 !important; color: #D45041; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <img src="https://i.postimg.cc/MGkXxsgz/jie-tu-2026-08-15-wan-shang10-10-03.png" alt="Dinotaeng 溫馨人力計算">
+        <h1>🐻 人力時數與費用計算小工具 🐻</h1>
+    </div>
+
+    <!-- 區塊 1: 計算機 -->
+    <div class="card-container">
+        <h2 style="color: #8B5A2B; margin-top: 0;">1. 本期人力費用試算</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>廠商名稱</th>
+                    <th>時薪設定 (元)</th>
+                    <th>人數</th>
+                    <th>一般工時 (hr)</th>
+                    <th>加班工時 (hr)</th>
+                    <th>額外費用 (元)</th>
+                    <th>需給付金額 (元)</th>
+                </tr>
+            </thead>
+            <tbody id="vendor-body"></tbody>
+        </table>
+        <div class="grand-total-container">
+            試算總計： NT$ <span id="grand-total">0</span>
+        </div>
+    </div>
+
+    <!-- 區塊 2: Excel 上傳與核對 -->
+    <div class="card-container upload-section">
+        <h2>📂 2. 上傳資料核對 (支援 .xlsx 檔案)</h2>
+        <p style="font-size: 14px; color: #666;">您可以上傳 <strong>202607人力_2.xlsx</strong> 等檔案。系統會為您預覽資料並自動加總最下方的數字欄位，方便您核對總數。</p>
+        <input type="file" id="upload-excel" accept=".xlsx, .xls">
+        
+        <div id="excel-preview" class="excel-preview" style="display:none; overflow-x: auto; margin-top: 20px;">
+            <!-- 解析後的 Excel 表格會顯示在這裡 -->
+        </div>
+    </div>
+
+    <script>
+        // --- 第一部分：計算機邏輯 ---
+        const vendors = ["銘暘(凱宥)", "源信", "杜豪", "彤勝", "安迅", "協泰", "建德", "優質人資"];
+        const tbody = document.getElementById('vendor-body');
+
+        function renderTable() {
+            vendors.forEach((vendor, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-weight: bold; color: #6F4E37;">${vendor}</td>
+                    <td><input type="number" min="0" value="200" id="rate_${index}" oninput="calculateRow(${index})"></td>
+                    <td><input type="number" min="0" value="0" id="people_${index}" oninput="calculateRow(${index})"></td>
+                    <td><input type="number" min="0" value="0" id="hours_${index}" oninput="calculateRow(${index})"></td>
+                    <td><input type="number" min="0" value="0" id="ot_hours_${index}" oninput="calculateRow(${index})"></td>
+                    <td><input type="number" min="0" value="0" id="extra_${index}" oninput="calculateRow(${index})"></td>
+                    <td class="total-amount" id="total_${index}">0</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function calculateRow(index) {
+            const rate = parseFloat(document.getElementById(`rate_${index}`).value) || 0;
+            const people = parseFloat(document.getElementById(`people_${index}`).value) || 0;
+            const hours = parseFloat(document.getElementById(`hours_${index}`).value) || 0;
+            const otHours = parseFloat(document.getElementById(`ot_hours_${index}`).value) || 0;
+            const extra = parseFloat(document.getElementById(`extra_${index}`).value) || 0;
+
+            const otRate = rate * 1.33; 
+            const totalPay = Math.round(((hours * rate) + (otHours * otRate)) * people + extra);
+
+            document.getElementById(`total_${index}`).innerText = totalPay.toLocaleString();
+            calculateGrandTotal();
+        }
+
+        function calculateGrandTotal() {
+            let grandTotal = 0;
+            for(let i = 0; i < vendors.length; i++) {
+                const rowTotalText = document.getElementById(`total_${i}`).innerText;
+                const rowTotal = parseInt(rowTotalText.replace(/,/g, '')) || 0;
+                grandTotal += rowTotal;
+            }
+            document.getElementById('grand-total').innerText = grandTotal.toLocaleString();
+        }
+
+        // --- 第二部分：Excel 讀取與核對邏輯 ---
+        document.getElementById('upload-excel').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const data = new Uint8Array(event.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                
+                // 讀取第一個工作表
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                // 轉為二維陣列 (包含空儲存格)
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1, defval: ""});
+                renderExcelPreview(jsonData);
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function renderExcelPreview(data) {
+            if(data.length === 0) return;
+
+            let html = '<table>';
+            let colSums = new Array(data[0].length).fill(0);
+            let hasNumberInCol = new Array(data[0].length).fill(false);
+
+            data.forEach((row, rowIndex) => {
+                html += '<tr>';
+                row.forEach((cell, colIndex) => {
+                    // 第一列做為標題樣式
+                    if (rowIndex === 0) {
+                        html += `<th>${cell !== undefined ? cell : ''}</th>`;
+                    } else {
+                        html += `<td>${cell !== undefined ? cell : ''}</td>`;
+                        
+                        // 嘗試進行數字加總 (排除空值與純文字)
+                        if (cell !== "" && !isNaN(cell)) {
+                            colSums[colIndex] += parseFloat(cell);
+                            hasNumberInCol[colIndex] = true;
+                        }
+                    }
+                });
+                html += '</tr>';
+            });
+
+            // 在最下方新增一行「系統自動加總」
+            html += '<tr class="excel-sum-row">';
+            colSums.forEach((sum, index) => {
+                if (index === 0) {
+                    html += `<td>💡 自動加總核對</td>`;
+                } else {
+                    html += `<td>${hasNumberInCol[index] ? Number(sum.toFixed(2)).toLocaleString() : '-'}</td>`;
+                }
+            });
+            html += '</tr>';
+
+            html += '</table>';
+
+            const previewDiv = document.getElementById('excel-preview');
+            previewDiv.innerHTML = html;
+            previewDiv.style.display = 'block';
+        }
+
+        window.onload = renderTable;
+    </script>
+</body>
+</html>
